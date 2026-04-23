@@ -6,7 +6,7 @@ WORKSPACE = Path(__file__).resolve().parent.parent / "workspace" / "proofs"
 
 
 def load_system_prompt(variant: str = "default") -> str:
-    """Build the system prompt, appending lea.md if present.
+    """Build the system prompt, appending lessons learned and lea.md if present.
 
     Variants: "default", "sketch", "fill", "reflect"
     """
@@ -17,11 +17,23 @@ def load_system_prompt(variant: str = "default") -> str:
         "reflect": REFLECT_PROMPT,
     }
     prompt = prompts[variant]
-    # Look for lea.md in cwd, then workspace root
+
+    # Add lessons learned (repo-level best practices)
+    lessons_file = Path(__file__).resolve().parent.parent / "LESSONS_LEARNED.md"
+    if lessons_file.exists():
+        lessons_content = lessons_file.read_text()
+        # Extract just the content (skip the header)
+        if "## File Organization" in lessons_content:
+            lessons_content = lessons_content.split("## File Organization", 1)[1]
+            lessons_content = "## File Organization" + lessons_content
+        prompt += "\n\n## Lessons Learned (Best Practices)\n" + lessons_content.strip()
+
+    # Look for lea.md in cwd, then workspace root (project-specific overrides)
     for candidate in [Path.cwd() / "lea.md", WORKSPACE.parent / "lea.md"]:
         if candidate.exists():
             prompt += "\n\n## Project-Specific Instructions\n" + candidate.read_text()
             break
+
     return prompt
 
 

@@ -2,12 +2,14 @@
 
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .prompt import load_system_prompt
 from .providers import stream, detect_provider, TextDelta, ToolCall, Done, _ToolMeta, Usage
 from .tools import TOOLS_SCHEMA, TOOL_HANDLERS
+from .tracking import ResultTracker
 
 SESSIONS_DIR = Path.home() / ".lea" / "sessions"
 
@@ -101,8 +103,19 @@ def run(
     resume: str | bool = False,
     return_transcript: bool = False,
     prompt_variant: str = "default",
+    result_dir: str | Path | None = None,
 ) -> str | tuple[str, dict]:
     """Run the agent on a formalization task.
+
+    Args:
+        task: Task description
+        model: Model name
+        max_turns: Maximum turns before stopping
+        provider: Provider name (auto-detected if None)
+        resume: Resume session (True for latest, or session ID string)
+        return_transcript: Return (message, transcript) tuple instead of just message
+        prompt_variant: Prompt variant to use ("default", "sketch", "fill")
+        result_dir: Directory for incremental result logging (None = disabled)
 
     Returns the final assistant message, or (message, transcript_dict) if
     return_transcript is True.
@@ -130,6 +143,19 @@ def run(
 
     provider_name = provider or detect_provider(model)
 
+    # Initialize result tracker
+    tracker = ResultTracker(result_dir, session_id) if result_dir else None
+    if tracker:
+        tracker.log_metadata(
+            task=task,
+            model=model,
+            config={
+                "max_turns": max_turns,
+                "prompt_variant": prompt_variant,
+                "provider": provider_name,
+            }
+        )
+
     def _result(text: str, turns: int):
         if return_transcript:
             # Build a clean transcript (no raw_part)
@@ -155,9 +181,18 @@ def run(
     turn = 0
     while True:
         turn += 1
+        turn_start_time = time.time()
+
         if max_turns and turn > max_turns:
             _save_session(session_id, model, messages, total_usage)
             _print_usage(model, turn - 1, total_usage)
+            if tracker:
+                tracker.log_final_result(
+                    turns=turn - 1,
+                    usage={"input_tokens": total_usage.input_tokens, "output_tokens": total_usage.output_tokens},
+                    success=False,
+                    error="Max turns reached"
+                )
             return _result("Error: max turns reached without completing the proof.", turn - 1)
 
         print(f"\n--- turn {turn} ---", flush=True)
@@ -206,20 +241,46 @@ def run(
             print()
             _save_session(session_id, model, messages, total_usage)
             _print_usage(model, turn, total_usage)
+
+            # Log final result
+            if tracker:
+                turn_duration = time.time() - turn_start_time
+                text = "".join(p["text"] for p in assistant_parts if p["type"] == "text")
+                tracker.log_turn_summary(turn, [], text, turn_duration)
+                tracker.log_final_result(
+                    turns=turn,
+                    usage={"input_tokens": total_usage.input_tokens, "output_tokens": total_usage.output_tokens},
+                    success=True,
+                )
+
             text = "".join(p["text"] for p in assistant_parts if p["type"] == "text")
             return _result(text or "(no response)", turn)
 
         # Execute tool calls and build results
         tool_results = []
+        tool_call_records = []  # For turn summary
         for tc in tool_calls:
+            tool_start = time.time()
             handler = TOOL_HANDLERS.get(tc["name"])
             if handler:
                 result = handler(tc["args"])
             else:
                 result = f"Error: unknown tool '{tc['name']}'"
+            tool_duration_ms = (time.time() - tool_start) * 1000
 
             preview = result[:200] + "..." if len(result) > 200 else result
             print(f"  <- {preview}", flush=True)
+
+            # Log tool call to timeline
+            if tracker:
+                tracker.log_tool_call(turn, tc["name"], tc["args"], result, tool_duration_ms)
+
+            # Record for turn summary
+            tool_call_records.append({
+                "name": tc["name"],
+                "args": tc["args"],
+                "result": result,
+            })
 
             tool_result = {"type": "tool_result", "tool_name": tc["name"], "content": result}
             # Attach provider-specific IDs for message reconstruction
@@ -230,6 +291,12 @@ def run(
 
         messages.append({"role": "user", "content": tool_results})
         _save_session(session_id, model, messages, total_usage)
+
+        # Log turn summary
+        if tracker:
+            turn_duration = time.time() - turn_start_time
+            text_output = "".join(p["text"] for p in assistant_parts if p["type"] == "text")
+            tracker.log_turn_summary(turn, tool_call_records, text_output, turn_duration)
 
 
 def _print_usage(model: str, turns: int, usage: Usage):

@@ -47,6 +47,20 @@ Lea runs a simple loop:
 
 Six tools: `read_file`, `write_file`, `edit_file`, `lean_check`, `search_mathlib`, `bash`. Supports Gemini, Anthropic, and OpenAI models. See [USAGE.md](USAGE.md) for full CLI reference.
 
+### Real-Time Monitoring
+
+Track agent progress live with the monitoring dashboard:
+
+```bash
+# Terminal 1: Run with result tracking
+uv run lea "Your task..." --result-dir results
+
+# Terminal 2: Monitor in real-time
+uv run python -m lea.monitor
+```
+
+Shows live updates of tool calls, file progress, token usage, and more. See [MONITORING.md](MONITORING.md) for details.
+
 ## Eval results
 
 Lea v1 with Gemini 3.1 Pro, single-pass (no retries), default prompts:

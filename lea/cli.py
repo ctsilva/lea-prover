@@ -38,6 +38,10 @@ def main():
     parser.add_argument(
         "--sessions", action="store_true", help="List recent sessions and exit.",
     )
+    parser.add_argument(
+        "--result-dir", type=str, default=None,
+        help="Directory for incremental result logging (enables real-time monitoring)",
+    )
 
     args = parser.parse_args()
 
@@ -71,6 +75,7 @@ def main():
         provider=args.provider,
         resume=args.resume,
         prompt_variant=variant,
+        result_dir=args.result_dir,
     )
     print(result)
 

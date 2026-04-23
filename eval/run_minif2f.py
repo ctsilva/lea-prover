@@ -81,7 +81,7 @@ def verify_proof(proof_path: Path) -> tuple[bool, str]:
 
 
 def run_agent(theorem_name: str, statement: str, model: str, max_turns: int,
-              proof_dir: Path, transcript_dir: Path) -> dict:
+              proof_dir: Path, transcript_dir: Path, result_dir: Path | None = None) -> dict:
     """Run Lea on a single problem. Returns result dict."""
     from lea.agent import run
 
@@ -102,7 +102,7 @@ def run_agent(theorem_name: str, statement: str, model: str, max_turns: int,
     transcript = None
     try:
         agent_output, transcript = run(
-            task, model=model, max_turns=max_turns, return_transcript=True
+            task, model=model, max_turns=max_turns, return_transcript=True, result_dir=result_dir
         )
     except Exception as e:
         agent_output = f"Agent error: {e}"
@@ -157,6 +157,7 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="Max problems to attempt")
     parser.add_argument("--resume", type=str, default=None, help="Resume from a results JSON file")
     parser.add_argument("--timeout", type=int, default=600, help="Per-problem timeout in seconds")
+    parser.add_argument("--result-dir", type=str, default=None, help="Directory for per-problem result tracking")
     args = parser.parse_args()
 
     problems = discover_problems(args.split)
@@ -199,8 +200,14 @@ def main():
 
         print(f"[{total + 1}/{len(problems)}] {name}", flush=True)
 
+        # Set up per-problem result directory if enabled
+        problem_result_dir = None
+        if args.result_dir:
+            problem_result_dir = Path(args.result_dir) / name
+            problem_result_dir.mkdir(parents=True, exist_ok=True)
+
         result = run_agent(theorem_name, statement, args.model, args.max_turns,
-                           proof_dir, transcript_dir)
+                           proof_dir, transcript_dir, problem_result_dir)
         results[name] = result
         total += 1
 

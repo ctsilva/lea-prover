@@ -5,6 +5,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+# Flag to enable/disable LSP mode
+USE_LSP = os.environ.get("LEA_USE_LSP", "1") == "1"
+
 TOOLS_SCHEMA = [
     {
         "name": "read_file",
@@ -129,6 +132,17 @@ def edit_file(path: str, old_string: str, new_string: str) -> str:
 
 
 def lean_check(path: str) -> str:
+    """Check a Lean file for errors. Uses LSP server by default for speed."""
+    if USE_LSP:
+        try:
+            from .lsp_manager import get_lsp_manager
+            lsp = get_lsp_manager()
+            return lsp.check_file(path)
+        except Exception as e:
+            # Fallback to direct compilation if LSP fails
+            print(f"LSP check failed ({e}), falling back to direct compilation", flush=True)
+
+    # Original direct compilation fallback
     p = Path(path).resolve()
     if not p.exists():
         return f"Error: {p} does not exist."

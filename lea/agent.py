@@ -1,6 +1,7 @@
 """Lea agent — the core loop. Model calls tools until done."""
 
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -10,6 +11,17 @@ from .prompt import load_system_prompt
 from .providers import stream, detect_provider, TextDelta, ToolCall, Done, _ToolMeta, Usage
 from .tools import TOOLS_SCHEMA, TOOL_HANDLERS
 from .tracking import ResultTracker
+
+# Cleanup LSP on exit if enabled
+if os.environ.get("LEA_USE_LSP", "1") == "1":
+    import atexit
+    def _cleanup_lsp():
+        try:
+            from .lsp_manager import get_lsp_manager
+            get_lsp_manager().shutdown()
+        except:
+            pass
+    atexit.register(_cleanup_lsp)
 
 SESSIONS_DIR = Path.home() / ".lea" / "sessions"
 
@@ -143,8 +155,9 @@ def run(
 
     provider_name = provider or detect_provider(model)
 
-    # Initialize result tracker
-    tracker = ResultTracker(result_dir, session_id) if result_dir else None
+    # Initialize result tracker with workspace for snapshots
+    workspace_path = Path(__file__).parent.parent / "workspace"
+    tracker = ResultTracker(result_dir, session_id, workspace_path) if result_dir else None
     if tracker:
         tracker.log_metadata(
             task=task,
@@ -155,6 +168,8 @@ def run(
                 "provider": provider_name,
             }
         )
+        # Capture initial workspace snapshot
+        tracker.capture_before_snapshot()
 
     def _result(text: str, turns: int):
         if return_transcript:
@@ -187,6 +202,9 @@ def run(
             _save_session(session_id, model, messages, total_usage)
             _print_usage(model, turn - 1, total_usage)
             if tracker:
+                # Capture final workspace snapshot
+                tracker.capture_after_snapshot()
+
                 tracker.log_final_result(
                     turns=turn - 1,
                     usage={"input_tokens": total_usage.input_tokens, "output_tokens": total_usage.output_tokens},
@@ -247,6 +265,10 @@ def run(
                 turn_duration = time.time() - turn_start_time
                 text = "".join(p["text"] for p in assistant_parts if p["type"] == "text")
                 tracker.log_turn_summary(turn, [], text, turn_duration)
+
+                # Capture final workspace snapshot
+                diff_summary = tracker.capture_after_snapshot()
+
                 tracker.log_final_result(
                     turns=turn,
                     usage={"input_tokens": total_usage.input_tokens, "output_tokens": total_usage.output_tokens},
@@ -259,6 +281,8 @@ def run(
         # Execute tool calls and build results
         tool_results = []
         tool_call_records = []  # For turn summary
+        modified_files = []  # Track files modified in this turn for snapshots
+
         for tc in tool_calls:
             tool_start = time.time()
             handler = TOOL_HANDLERS.get(tc["name"])
@@ -274,6 +298,12 @@ def run(
             # Log tool call to timeline
             if tracker:
                 tracker.log_tool_call(turn, tc["name"], tc["args"], result, tool_duration_ms)
+
+            # Track files modified by write_file or edit_file
+            if tc["name"] in ["write_file", "edit_file"] and "path" in tc["args"]:
+                file_path = tc["args"]["path"]
+                if file_path.endswith(".lean"):
+                    modified_files.append(file_path)
 
             # Record for turn summary
             tool_call_records.append({
@@ -292,11 +322,15 @@ def run(
         messages.append({"role": "user", "content": tool_results})
         _save_session(session_id, model, messages, total_usage)
 
-        # Log turn summary
+        # Log turn summary and capture snapshots
         if tracker:
             turn_duration = time.time() - turn_start_time
             text_output = "".join(p["text"] for p in assistant_parts if p["type"] == "text")
             tracker.log_turn_summary(turn, tool_call_records, text_output, turn_duration)
+
+            # Capture snapshot of modified .lean files
+            if modified_files:
+                tracker.capture_file_snapshot(turn, modified_files)
 
 
 def _print_usage(model: str, turns: int, usage: Usage):

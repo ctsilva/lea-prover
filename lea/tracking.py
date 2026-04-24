@@ -13,20 +13,27 @@ from pathlib import Path
 class ResultTracker:
     """Tracks and logs session progress incrementally."""
 
-    def __init__(self, result_dir: Path | None, session_id: str):
+    def __init__(self, result_dir: Path | None, session_id: str, workspace_dir: Path | None = None):
         """Initialize result tracker.
 
         Args:
             result_dir: Base directory for results (e.g., "results/")
             session_id: Unique session identifier
+            workspace_dir: Path to workspace directory (for snapshots)
         """
         self.result_dir = result_dir
         self.session_id = session_id
         self.session_result_dir = None
+        self.snapshot_manager = None
 
         if result_dir:
             self.session_result_dir = Path(result_dir) / session_id
             self.session_result_dir.mkdir(parents=True, exist_ok=True)
+
+            # Initialize snapshot manager if workspace provided
+            if workspace_dir:
+                from .snapshots import SnapshotManager
+                self.snapshot_manager = SnapshotManager(result_dir, session_id, workspace_dir)
 
     def log_metadata(self, task: str, model: str, config: dict):
         """Log session metadata at start.
@@ -136,6 +143,28 @@ class ResultTracker:
 
         result_file = self.session_result_dir / "final_result.json"
         result_file.write_text(json.dumps(result, indent=2))
+
+    def capture_file_snapshot(self, turn: int, modified_files: list[str]):
+        """Capture snapshot of files modified in this turn.
+
+        Args:
+            turn: Current turn number
+            modified_files: List of file paths that were modified
+        """
+        if self.snapshot_manager:
+            self.snapshot_manager.capture_intermediate_snapshot(turn, modified_files)
+
+    def capture_before_snapshot(self):
+        """Capture initial workspace state."""
+        if self.snapshot_manager:
+            return self.snapshot_manager.capture_before_snapshot()
+        return {}
+
+    def capture_after_snapshot(self):
+        """Capture final workspace state and compute diff."""
+        if self.snapshot_manager:
+            return self.snapshot_manager.capture_after_snapshot()
+        return {}
 
 
 def track_file_stats(file_path: str | Path) -> dict:

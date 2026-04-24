@@ -21,223 +21,272 @@ This plan outlines enhancements to make Lea's behavior easier to understand, esp
 
 ## Phase 1: Core Real-Time Observability
 
-### P0: Real-Time Monitoring Dashboard
+### P0: Real-Time Monitoring Dashboard ✅ IMPLEMENTED
 **Purpose**: See what the agent is doing right now without waiting for completion
 
 **Tasks**:
-- [ ] Create `lea/monitor.py` with basic dashboard
-  - [ ] Auto-detect latest session or accept session ID
-  - [ ] Poll session JSON file every 2 seconds (configurable)
-  - [ ] Display current turn number and elapsed time
-  - [ ] Show tool call counts (read_file, write_file, lean_check, etc.)
-  - [ ] Display last 5-10 tool calls with timestamps
-  - [ ] Show last assistant text output (truncated)
-  - [ ] Auto-exit when session completes
-- [ ] Use `rich` library for formatted terminal output
-  - [ ] Status panel (top): session ID, model, turn, duration
-  - [ ] Tool stats panel (left): tool names and counts
-  - [ ] Recent activity panel (right): last N tool calls
-  - [ ] Text preview panel (bottom): latest agent output
-- [ ] Add CLI entry point: `python -m lea.monitor [session_id]`
-- [ ] Handle edge cases:
-  - [ ] Session file doesn't exist yet
-  - [ ] Session file is being written (partial JSON)
-  - [ ] Multiple concurrent sessions
+- [x] Create `lea/monitor.py` with basic dashboard
+  - [x] Auto-detect latest session or accept session ID
+  - [x] Poll session JSON file every 2 seconds (configurable)
+  - [x] Display current turn number and elapsed time
+  - [x] Show tool call counts (read_file, write_file, lean_check, etc.)
+  - [x] Display last 6 tool calls with args
+  - [x] Show last assistant text output (truncated to 400 chars)
+  - [x] Auto-exit when session completes
+- [x] Use `rich` library for formatted terminal output
+  - [x] Header: session ID, model, status, duration
+  - [x] Status panel (left): turns, tokens, active files with line/sorry counts
+  - [x] Tool stats panel (right top): tool names, call counts, error counts
+  - [x] Recent activity panel (right bottom): last N tool calls
+  - [x] Text preview panel (bottom): latest agent output
+- [x] Add CLI entry point: `python -m lea.monitor [session_id]`
+- [x] Handle edge cases:
+  - [x] Session file doesn't exist yet
+  - [x] Session file is being written (partial JSON) - safe loading
+  - [x] Session ID prefix matching
 
-**Files to create**:
-- `lea/monitor.py` (~200-300 lines)
+**Files created**:
+- `lea/monitor.py` (399 lines - fully featured dashboard)
 
 **Dependencies**:
-- `rich` (already used in numina agent)
+- `rich` ✅ already in dependencies
 
-**Estimated effort**: 4-6 hours
+**Status**: ✅ Fully implemented and working
+**Usage**: `python -m lea.monitor` or `python -m lea.monitor SESSION_ID`
 
 ---
 
-### P0: Incremental Result Logging
+### P0: Incremental Result Logging ✅ IMPLEMENTED
 **Purpose**: Write progress data immediately so monitoring can work during long turns
 
 **Tasks**:
-- [ ] Add `result_dir` parameter to `run()` function (optional)
-- [ ] Create result directory structure: `results/{session_id}/`
-- [ ] Log tool calls immediately to `tool_timeline.jsonl`
-  - [ ] One JSON line per tool execution
-  - [ ] Fields: `timestamp`, `turn`, `tool_name`, `args`, `result_preview`, `duration_ms`
-- [ ] Save turn summaries to `turn_N.json` after each turn
-  - [ ] Tool calls made
-  - [ ] Text output
-  - [ ] Timestamp and duration
-- [ ] Save session metadata to `metadata.json` at start
-  - [ ] Task description
-  - [ ] Model name
-  - [ ] Start timestamp
-  - [ ] Configuration (max_turns, prompt_variant)
-- [ ] Update final result summary at end: `final_result.json`
-  - [ ] Success/failure
-  - [ ] Total turns
-  - [ ] Total tokens and estimated cost
-  - [ ] Final verification status (if applicable)
+- [x] Add `result_dir` parameter to `run()` function (optional)
+- [x] Create result directory structure: `results/{session_id}/`
+- [x] Log tool calls immediately to `tool_timeline.jsonl`
+  - [x] One JSON line per tool execution
+  - [x] Fields: `timestamp`, `turn`, `tool`, `args`, `result_preview`, `duration_ms`
+- [x] Save turn summaries to `turn_N.json` after each turn
+  - [x] Tool calls made (with args and result previews)
+  - [x] Text output (truncated to 1000 chars)
+  - [x] Timestamp and duration
+- [x] Save session metadata to `metadata.json` at start
+  - [x] Task description
+  - [x] Model name
+  - [x] Start timestamp
+  - [x] Configuration (max_turns, prompt_variant, provider)
+- [x] Update final result summary at end: `final_result.json`
+  - [x] Success/failure
+  - [x] Total turns
+  - [x] Total tokens (input + output)
+  - [x] Completion timestamp
+  - [x] Error message (if failed)
 
-**Files to modify**:
-- `lea/agent.py` (add ~50-80 lines)
+**Files created**:
+- `lea/tracking.py` (204 lines - ResultTracker class + helpers)
 
-**Files to create**:
-- Helper functions in new file or within `agent.py`
+**Files modified**:
+- `lea/agent.py` (integrated ResultTracker throughout)
 
-**Estimated effort**: 3-4 hours
+**Status**: ✅ Fully implemented and working
+**Used in**: eval runs already use this infrastructure
 
 ---
 
-### P1: File Statistics Tracking
+### P1: File Statistics Tracking ✅ IMPLEMENTED
 **Purpose**: Monitor proof progress (line counts, sorry counts)
 
 **Tasks**:
-- [ ] Create `track_file_stats()` function
-  - [ ] Count total lines in .lean file
-  - [ ] Count `sorry` occurrences (regex: `\bsorry\b`)
-  - [ ] Return `{"lines": int, "sorries": int, "path": str}`
-- [ ] Integrate into monitoring dashboard
-  - [ ] Show current stats for files being worked on
-  - [ ] Show delta from initial snapshot (if available)
-  - [ ] Color-code: green if sorries decreasing, red if increasing
-- [ ] Track which files are being actively modified
-  - [ ] Parse tool calls to identify target files
-  - [ ] Maintain list of "active files" per session
-- [ ] Add to incremental logging
-  - [ ] Log file stats after each write_file/edit_file call
-  - [ ] Include in turn summaries
+- [x] Create `track_file_stats()` function
+  - [x] Count total lines in .lean file
+  - [x] Count `sorry` occurrences (regex: `\bsorry\b`)
+  - [x] Return `{"lines": int, "sorries": int, "path": str}`
+- [x] Integrate into monitoring dashboard
+  - [x] Show current stats for files being worked on (up to 3 files)
+  - [x] Display in status panel with lines and sorry counts
+  - [ ] Color-code based on delta (needs before snapshot comparison)
+- [x] Track which files are being actively modified
+  - [x] `extract_active_files()` function parses tool calls
+  - [x] Identifies .lean files from 'path' arguments
+  - [x] Maintains list of active files per session
+- [x] File stats function also in tracking.py
+  - [x] Same implementation in both places
+  - [x] Used for snapshot manifests
 
-**Files to create/modify**:
-- Add to `lea/monitor.py` (~30-50 lines)
-- Add helper in `lea/utils.py` or `lea/tracking.py` (~40 lines)
+**Files modified**:
+- `lea/monitor.py` (includes `track_file_stats()` and `extract_active_files()`)
+- `lea/tracking.py` (includes `track_file_stats()` and `extract_files_from_args()`)
 
-**Estimated effort**: 2-3 hours
+**Status**: ✅ Core functionality implemented
+**Note**: Color-coding based on deltas would require comparing to initial snapshot
 
 ---
 
 ## Phase 2: Enhanced Analysis & Debugging
 
-### P1: Tool Usage Statistics
+### P1: Tool Usage Statistics ✅ IMPLEMENTED
 **Purpose**: Understand patterns in how agent uses tools
 
 **Tasks**:
-- [ ] Create `analyze_session()` function
-  - [ ] Parse session messages to extract all tool calls
-  - [ ] Count by tool name
-  - [ ] Detect errors (tool results starting with "Error:")
-  - [ ] Calculate success rates per tool
-  - [ ] Track temporal patterns (which tools used when)
-- [ ] Generate statistics report
-  - [ ] Total calls by tool type
-  - [ ] Success vs error rates
-  - [ ] Average duration per tool (if timing data available)
-  - [ ] Most common error messages
-- [ ] Add to monitor dashboard (summary view)
-- [ ] Create standalone analysis CLI: `python -m lea.analyze [session_id]`
-  - [ ] Print detailed statistics to terminal
-  - [ ] Optionally export to JSON
+- [x] Create `analyze_session()` function
+  - [x] Parse session messages to extract all tool calls
+  - [x] Count by tool name
+  - [x] Detect errors (tool results starting with "Error:")
+  - [x] Calculate success rates per tool
+  - [x] Track temporal patterns (tools by turn, common sequences)
+- [x] Generate statistics report
+  - [x] Total calls by tool type
+  - [x] Success vs error rates
+  - [x] Tool usage sequences
+  - [x] Common error patterns
+  - [x] Per-turn error tracking
+- [x] Create standalone analysis CLI: `python -m lea.analyze [session_id]`
+  - [x] Print detailed statistics to terminal (using Rich)
+  - [x] Export to JSON with `--export FILE`
+  - [x] Beautiful formatted tables for all stats
+- [ ] Add to monitor dashboard (deferred - monitor already shows basic stats)
 
-**Files to create**:
-- `lea/analyze.py` (~150-200 lines)
+**Files created**:
+- `lea/analyze.py` (295 lines with comprehensive analysis)
 
-**Estimated effort**: 3-4 hours
+**Output includes**:
+- Summary statistics (turns, tokens, error rate)
+- Tool usage table (calls, success, errors, success rate)
+- Common tool sequences (pattern detection)
+- Error analysis (common patterns, recent errors)
+
+**Status**: ✅ Fully implemented and tested
+**Usage**: `python -m lea.analyze` or `python -m lea.analyze SESSION_ID --export stats.json`
 
 ---
 
-### P1: Snapshot System
-**Purpose**: Compare before/after state of workspace files
+### P1: Snapshot System & Intermediate File Tracking ✅ IMPLEMENTED
+**Purpose**: Compare before/after state of workspace files AND track evolution of files across turns
 
 **Tasks**:
-- [ ] Create `lea/snapshots.py` module
-- [ ] Implement `capture_snapshot_before()`
-  - [ ] Copy all .lean files from workspace to `results/{session_id}/snapshots/before/`
-  - [ ] Save file metadata: paths, sizes, line counts, sorry counts
-  - [ ] Return snapshot manifest JSON
-- [ ] Implement `capture_snapshot_after()`
-  - [ ] Copy final state to `results/{session_id}/snapshots/after/`
-  - [ ] Compare with before snapshot
-  - [ ] Generate diff summary: files added, modified, deleted
-  - [ ] Calculate metrics: lines changed, sorries added/removed
-- [ ] Integrate into `run()` when `result_dir` is provided
-  - [ ] Capture before snapshot at start
-  - [ ] Capture after snapshot at end
-  - [ ] Include diff summary in final_result.json
-- [ ] Add `--reset-from-original` option to CLI
-  - [ ] Find latest snapshot for a session
-  - [ ] Restore files from `before/` directory
+- [x] Create `lea/snapshots.py` module
+- [x] Implement `capture_snapshot_before()`
+  - [x] Copy all .lean files from workspace to `results/{session_id}/snapshots/before/`
+  - [x] Save file metadata: paths, sizes, line counts, sorry counts
+  - [x] Return snapshot manifest JSON
+- [x] Implement `capture_snapshot_after()`
+  - [x] Copy final state to `results/{session_id}/snapshots/after/`
+  - [x] Compare with before snapshot
+  - [x] Generate diff summary: files added, modified, deleted
+  - [x] Calculate metrics: lines changed, sorries added/removed
+- [x] **Implement intermediate file snapshots on every modification**
+  - [x] After each `write_file` or `edit_file` tool call on `.lean` files, save a copy
+  - [x] Save to `results/{session_id}/snapshots/turn_{N}/` with original filename
+  - [x] This preserves the complete evolution of the proof across all turns
+  - [x] Benefits:
+    - See exactly what was checked at each turn (useful for debugging)
+    - Reproduce any intermediate state
+    - Benchmark performance improvements on actual intermediate files
+    - Analyze proof evolution and strategy patterns
+- [x] Integrate into `run()` when `result_dir` is provided
+  - [x] Capture before snapshot at start
+  - [x] Capture intermediate snapshot after each file modification
+  - [x] Capture after snapshot at end (on success or max turns)
+  - [x] Generate and save diff summary
+- [x] Add `restore_from_snapshot()` method to SnapshotManager
+  - [x] Can restore from "before", "after", or "turn_N"
+  - [x] Preserves directory structure
+- [ ] Add `--reset-from-original` option to CLI (deferred - needs CLI work)
 
-**Files to create**:
-- `lea/snapshots.py` (~200-250 lines)
+**Files created**:
+- `lea/snapshots.py` (313 lines with full snapshot tracking)
 
-**Files to modify**:
-- `lea/agent.py` (integrate snapshot calls)
-- `lea/cli.py` (add --reset-from-original flag)
+**Files modified**:
+- `lea/agent.py` (integrated snapshot capture at start, per-turn, and end)
+- `lea/tracking.py` (added snapshot manager integration and helper methods)
 
-**Estimated effort**: 4-5 hours
+**Status**: ✅ Core implementation complete, tested manually
+**Note**: Full end-to-end testing blocked by slow lean_check times (LSP issue)
 
 ---
 
-### P2: Enhanced Session Management
+### P2: Enhanced Session Management ✅ IMPLEMENTED
 **Purpose**: Better tools for exploring and managing session history
 
 **Tasks**:
-- [ ] Enhance `list_sessions()` output
-  - [ ] Show success/failure status (if available)
-  - [ ] Display token usage and estimated cost
-  - [ ] Show active files worked on
-  - [ ] Add filtering options (by model, by date range, by status)
-- [ ] Add session comparison tool
-  - [ ] Compare two sessions side-by-side
-  - [ ] Show different tool usage patterns
-  - [ ] Compare token efficiency
-- [ ] Add session cleanup utilities
-  - [ ] Archive old sessions
-  - [ ] Delete failed sessions
-  - [ ] Export sessions to external format
+- [x] Enhanced session listing
+  - [x] Show success/failure status (intelligent detection)
+  - [x] Display token usage and estimated cost
+  - [x] Show active files worked on
+  - [x] Add filtering options (by model, by status)
+  - [x] Limit control
+- [x] Add session comparison tool
+  - [x] Compare two sessions side-by-side
+  - [x] Show different tool usage patterns
+  - [x] Compare token efficiency
+  - [x] Show turn and cost differences
+- [x] Add session cleanup utilities
+  - [x] Delete failed sessions (with dry-run mode)
+  - [x] Confirmation flag for safety
+  - [x] Report what would be deleted
 
-**Files to modify**:
-- `lea/agent.py` (enhance list_sessions)
+**Files created**:
+- `lea/session_manager.py` (344 lines - complete session management CLI)
 
-**Files to create**:
-- `lea/session_manager.py` (~150 lines)
+**Files modified**:
+- None! (kept agent.py unchanged for backward compatibility)
 
-**Estimated effort**: 3-4 hours
+**Features**:
+- **List**: Enhanced session listing with status, tokens, cost
+- **Compare**: Side-by-side comparison of two sessions
+- **Cleanup**: Safe deletion with dry-run mode
+
+**Status**: ✅ Fully implemented and tested
+**Usage**:
+```bash
+python -m lea.session_manager list --model gpt-5.4
+python -m lea.session_manager compare SESSION1 SESSION2
+python -m lea.session_manager cleanup --failed --confirm
+```
 
 ---
 
 ## Phase 3: Evaluation & Batch Processing Improvements
 
-### P1: Enhanced Eval Result Tracking
+### P1: Enhanced Eval Result Tracking ✅ IMPLEMENTED
 **Purpose**: Better observability for long-running benchmark evaluations
 
 **Tasks**:
-- [ ] Modify `eval/run_minif2f.py` to use result_dir infrastructure
-  - [ ] Each problem gets its own result directory
-  - [ ] Tool timeline and incremental logs available
-  - [ ] Can monitor individual problems during eval
-- [ ] Add eval-level monitoring dashboard
-  - [ ] Show progress across all problems
-  - [ ] Display current problem being worked on
-  - [ ] Show running pass rate
-  - [ ] Estimate time remaining
-- [ ] Enhanced per-problem transcripts
-  - [ ] Include tool usage stats
-  - [ ] Include file snapshots
-  - [ ] Track compilation attempts and errors
-- [ ] Aggregate statistics across eval run
-  - [ ] Tool usage patterns for successful vs failed proofs
-  - [ ] Average turns for different problem types
-  - [ ] Token usage analysis
+- [x] Eval scripts already use result_dir infrastructure
+  - [x] Each problem gets its own result directory (`result_dir/problem_name/`)
+  - [x] Tool timeline and incremental logs available (via ResultTracker)
+  - [x] Can monitor individual problems during eval
+- [x] Add eval-level monitoring dashboard
+  - [x] Show progress across all problems
+  - [x] Display recent problems with results
+  - [x] Show running pass rate
+  - [x] Time and turn statistics
+- [x] Comprehensive eval analysis tool
+  - [x] Summary statistics (pass rate, total problems)
+  - [x] Time statistics (avg, min, max for passed/failed)
+  - [x] Turn statistics (avg for passed vs failed)
+  - [x] Token usage analysis
+  - [x] Hardest problems (most turns, failed)
+  - [x] Quickest successes
+  - [x] Comparison mode for two evals
+- [x] Per-problem transcripts already enhanced
+  - [x] Include turns and usage stats
+  - [x] Full message history
+  - [x] Verification output
 
-**Files to modify**:
-- `eval/run_minif2f.py` (~100 lines of changes)
-- Similar changes to `eval/run_fqb.py`, `eval/run_baseline.py`
+**Files created**:
+- `eval/monitor_eval.py` (234 lines - live eval monitoring dashboard)
+- `eval/analyze_eval.py` (369 lines - comprehensive eval analysis with comparison)
 
-**Files to create**:
-- `eval/monitor_eval.py` (~200 lines)
-- `eval/analyze_eval.py` (~250 lines)
+**Files modified**:
+- None! Eval scripts already had result_dir support
 
-**Estimated effort**: 5-6 hours
+**Status**: ✅ Fully implemented and tested
+**Usage**:
+```bash
+python -m eval.monitor_eval --latest              # Monitor running eval
+python -m eval.analyze_eval --latest              # Analyze completed eval
+python -m eval.analyze_eval --compare FILE1 FILE2 # Compare two evals
+```
 
 ---
 
@@ -266,28 +315,58 @@ This plan outlines enhancements to make Lea's behavior easier to understand, esp
 
 ## Phase 4: Advanced Features & Visualization
 
-### P2: HTML Visualization System
+### P2: HTML Visualization System ✅ COMPLETED
 **Purpose**: Post-hoc interactive analysis of sessions
 
 **Tasks**:
-- [ ] Create HTML template with embedded JavaScript
-  - [ ] Timeline view of all tool calls
-  - [ ] Clickable events to see details
-  - [ ] Tool usage bar charts
-  - [ ] Turn-by-turn navigation
-  - [ ] Text diff viewer for file changes
-- [ ] Generate self-contained HTML files
-  - [ ] Embed all data as JSON
-  - [ ] No external dependencies
-  - [ ] Works offline
-- [ ] Add CLI: `python -m lea.visualize [session_id]`
-  - [ ] Generate `results/{session_id}/visualization.html`
-  - [ ] Optionally open in browser
+- [x] Create HTML template with embedded JavaScript
+  - [x] Timeline view of all tool calls
+  - [x] Clickable events to see details
+  - [x] Tool usage bar charts
+  - [x] Turn-by-turn navigation
+  - [ ] Text diff viewer for file changes (TODO: enhance with side-by-side diff)
+- [x] Generate self-contained HTML files
+  - [x] Embed all data as JSON
+  - [x] No external dependencies
+  - [x] Works offline
+- [x] Add CLI scripts
+  - [x] `eval/visualize_session.py [session_dir] [output.html]`
+  - [x] `eval/visualize_all_sessions.py [eval_results_dir] [output_dir]`
+  - [x] Generates index.html for all sessions
 
-**Files to create**:
-- `lea/visualize.py` (~400-500 lines including HTML template)
+**Files created**:
+- `eval/visualize_session.py` (~550 lines including HTML template)
+- `eval/visualize_all_sessions.py` (~150 lines)
 
-**Estimated effort**: 8-10 hours
+**Usage**:
+```bash
+# Visualize single session
+python eval/visualize_session.py eval_results/test_run/aimeII_2001_p3/20260424-015729/ output.html
+
+# Visualize all sessions and create index
+python eval/visualize_all_sessions.py eval_results/test_run/ visualizations/
+
+# Open the index in browser
+open visualizations/index.html
+```
+
+**Features**:
+- Interactive timeline with color-coded turns
+- Click any tool call to see full details (args, result, duration)
+- Click any turn to see summary of all tool calls in that turn
+- Tool usage statistics table with counts and durations
+- Session metadata and success/failure status
+- Fully self-contained HTML (no external dependencies)
+- Works offline
+
+**Actual effort**: ~2 hours
+
+**Recent improvements** (2026-04-24):
+- Fixed turn sorting bug (numerical vs alphabetical)
+- Replaced modal popup with inline details panel
+- Added 3-column layout with sticky details
+- Visual selection highlighting
+- All 14 test sessions regenerated
 
 ---
 

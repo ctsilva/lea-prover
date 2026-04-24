@@ -117,6 +117,7 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
     task = metadata.get("task", "No task description")
     model = metadata.get("model", "unknown")
     started_at = metadata.get("started_at", "")
+    system_prompt = metadata.get("system_prompt", None)
 
     completed_at = final_result.get("completed_at", "")
     success = final_result.get("success", False)
@@ -388,6 +389,33 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
             white-space: pre-wrap;
             font-family: monospace;
         }}
+        details {{
+            margin-top: 15px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #6c757d;
+        }}
+        summary {{
+            cursor: pointer;
+            font-weight: 600;
+            color: #495057;
+            user-select: none;
+        }}
+        summary:hover {{
+            color: #007bff;
+        }}
+        .prompt-content {{
+            margin-top: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 13px;
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+        }}
     </style>
 </head>
 <body>
@@ -403,6 +431,12 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
                 </span>
             </div>
             <div class="task-description">{escape_html(task)}</div>
+            {f'''
+            <details>
+                <summary>System Prompt ({len(system_prompt)} characters)</summary>
+                <div class="prompt-content">{escape_html(system_prompt)}</div>
+            </details>
+            ''' if system_prompt else ''}
         </header>
 
         <div class="stats-grid">

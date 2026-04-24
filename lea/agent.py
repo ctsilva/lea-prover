@@ -166,7 +166,8 @@ def run(
                 "max_turns": max_turns,
                 "prompt_variant": prompt_variant,
                 "provider": provider_name,
-            }
+            },
+            system_prompt=system,
         )
         # Capture initial workspace snapshot
         tracker.capture_before_snapshot()

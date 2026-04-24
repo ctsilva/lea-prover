@@ -35,13 +35,14 @@ class ResultTracker:
                 from .snapshots import SnapshotManager
                 self.snapshot_manager = SnapshotManager(result_dir, session_id, workspace_dir)
 
-    def log_metadata(self, task: str, model: str, config: dict):
+    def log_metadata(self, task: str, model: str, config: dict, system_prompt: str | None = None):
         """Log session metadata at start.
 
         Args:
             task: The task description
             model: Model name
             config: Additional configuration (max_turns, prompt_variant, etc.)
+            system_prompt: The full system prompt (optional but recommended)
         """
         if not self.session_result_dir:
             return
@@ -53,6 +54,9 @@ class ResultTracker:
             "started_at": datetime.now(timezone.utc).isoformat(),
             "config": config,
         }
+
+        if system_prompt:
+            metadata["system_prompt"] = system_prompt
 
         metadata_file = self.session_result_dir / "metadata.json"
         metadata_file.write_text(json.dumps(metadata, indent=2))

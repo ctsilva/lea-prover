@@ -449,7 +449,7 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
                         <th>Count</th>
                         <th>Avg Duration</th>
                         <th>Total Duration</th>
-                        <th>Usage</th>
+                        <th>Time Distribution</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -460,7 +460,7 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
                         <td>{format_duration(item['avg_duration'])}</td>
                         <td>{format_duration(item['total_duration'])}</td>
                         <td>
-                            <div class="tool-bar" style="width: {min(300, item['count'] * 20)}px;"></div>
+                            <div class="tool-bar" style="width: {min(300, max(2, item['total_duration'] / 1000))}px;"></div>
                         </td>
                     </tr>
                     ''' for item in tool_chart_data])}

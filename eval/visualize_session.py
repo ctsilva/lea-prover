@@ -148,27 +148,8 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
         </div>
         ''')
 
-    # Build turn summaries - sort by turn number
-    turn_summaries = []
+    # Sort turns for JavaScript
     sorted_turns = sorted(turns, key=lambda t: t.get("turn", 0))
-    for idx, turn in enumerate(sorted_turns):
-        turn_num = turn.get("turn", 0)
-        turn_duration = turn.get("duration_s", 0)
-        tool_calls = turn.get("tool_calls", [])
-        num_tools = len(tool_calls)
-
-        turn_summaries.append(f'''
-        <div class="turn-card" onclick="showTurnDetails({idx})">
-            <div class="turn-header">
-                <h3>Turn {turn_num}</h3>
-                <span class="turn-meta">{num_tools} tool calls • {turn_duration:.1f}s</span>
-            </div>
-            <div class="turn-tools">
-                {", ".join([t.get("tool", "?") for t in tool_calls[:5]])}
-                {"..." if num_tools > 5 else ""}
-            </div>
-        </div>
-        ''')
 
     # Build tool stats chart data
     tool_chart_data = []
@@ -226,7 +207,7 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
         .status-failure {{ background: #f8d7da; color: #721c24; }}
         .grid {{
             display: grid;
-            grid-template-columns: 1fr 2fr 1.5fr;
+            grid-template-columns: 2fr 1.5fr;
             gap: 20px;
             margin-bottom: 20px;
         }}
@@ -323,36 +304,6 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
             margin-left: auto;
         }}
         .timeline-preview {{
-            font-size: 13px;
-            color: #666;
-        }}
-        .turn-card {{
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }}
-        .turn-card:hover {{
-            background: #e9ecef;
-            transform: translateY(-2px);
-        }}
-        .turn-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }}
-        .turn-header h3 {{
-            font-size: 16px;
-            color: #1a1a1a;
-        }}
-        .turn-meta {{
-            font-size: 12px;
-            color: #6c757d;
-        }}
-        .turn-tools {{
             font-size: 13px;
             color: #666;
         }}
@@ -475,11 +426,6 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
 
         <div class="grid">
             <div class="panel">
-                <h2>Turns</h2>
-                {''.join(turn_summaries)}
-            </div>
-
-            <div class="panel">
                 <h2>Timeline</h2>
                 <div class="timeline">
                     {''.join(timeline_html)}
@@ -489,7 +435,7 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
             <div class="panel details-panel">
                 <h2>Details</h2>
                 <div id="detailsContent" class="details-empty">
-                    Click on any turn or timeline entry to see details
+                    Click on any timeline entry to see details
                 </div>
             </div>
         </div>
@@ -525,7 +471,6 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
 
     <script>
         const timelineData = {json.dumps(timeline)};
-        const turnData = {json.dumps(sorted_turns)};
         let currentSelection = null;
 
         function showToolDetails(index) {{
@@ -572,53 +517,6 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
                     <div class="detail-section">
                         <h3>Result</h3>
                         <pre><code>${{escapeHtml(entry.result_preview)}}</code></pre>
-                    </div>
-                `;
-            }}
-
-            content.innerHTML = html;
-            content.classList.remove('details-empty');
-        }}
-
-        function showTurnDetails(index) {{
-            const turn = turnData[index];
-            const content = document.getElementById('detailsContent');
-
-            // Remove previous selection highlight
-            if (currentSelection) {{
-                currentSelection.classList.remove('selected');
-            }}
-
-            // Highlight current selection
-            const turnCards = document.querySelectorAll('.turn-card');
-            if (turnCards[index]) {{
-                turnCards[index].classList.add('selected');
-                currentSelection = turnCards[index];
-            }}
-
-            let html = `
-                <div class="details-header">
-                    <div class="details-title">Turn ${{turn.turn}}</div>
-                </div>
-                <div class="detail-section">
-                    <h3>Duration</h3>
-                    <p>${{turn.duration_s || 0}} seconds</p>
-                </div>
-                <div class="detail-section">
-                    <h3>Tool Calls (${{turn.tool_calls.length}})</h3>
-                    <ul>
-                        ${{turn.tool_calls.map(tc => `
-                            <li><strong>${{tc.tool}}</strong>: ${{truncate(tc.result_preview || 'No preview', 100)}}</li>
-                        `).join('')}}
-                    </ul>
-                </div>
-            `;
-
-            if (turn.text_output) {{
-                html += `
-                    <div class="detail-section">
-                        <h3>Text Output</h3>
-                        <pre><code>${{escapeHtml(turn.text_output)}}</code></pre>
                     </div>
                 `;
             }}

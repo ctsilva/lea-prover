@@ -151,14 +151,14 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
     # Build turn summaries - sort by turn number
     turn_summaries = []
     sorted_turns = sorted(turns, key=lambda t: t.get("turn", 0))
-    for turn in sorted_turns:
+    for idx, turn in enumerate(sorted_turns):
         turn_num = turn.get("turn", 0)
         turn_duration = turn.get("duration_s", 0)
         tool_calls = turn.get("tool_calls", [])
         num_tools = len(tool_calls)
 
         turn_summaries.append(f'''
-        <div class="turn-card" onclick="showTurnDetails({turn_num - 1})">
+        <div class="turn-card" onclick="showTurnDetails({idx})">
             <div class="turn-header">
                 <h3>Turn {turn_num}</h3>
                 <span class="turn-meta">{num_tools} tool calls • {turn_duration:.1f}s</span>
@@ -525,7 +525,7 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
 
     <script>
         const timelineData = {json.dumps(timeline)};
-        const turnData = {json.dumps(turns)};
+        const turnData = {json.dumps(sorted_turns)};
         let currentSelection = null;
 
         function showToolDetails(index) {{

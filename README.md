@@ -95,6 +95,36 @@ cat eval/results/valid_*.json | python3 -c "import json,sys; d=json.load(sys.std
 
 Results are saved to `eval/results/` with per-problem transcripts. Use `--resume <path>` to continue a partial run.
 
+### Visualizations
+
+LEA includes powerful visualizations to understand agent behavior and proof evolution:
+
+**Session Timeline Visualization** - Interactive view of tool usage, timing, and reasoning:
+```bash
+# Visualize a single session
+python eval/visualize_session.py eval_results/test_run/problem/timestamp/
+
+# Generate all session visualizations
+python eval/visualize_all_sessions.py
+```
+
+**Proof Flow Visualization** - Block-based flow diagram showing how proofs evolve:
+```bash
+# Visualize proof flow for one session
+python eval/visualize_proof_flow.py eval_results/test_run/problem/timestamp/
+
+# Generate all proof flow visualizations
+python eval/visualize_all_proof_flows.py
+```
+
+The proof flow visualization groups consecutive lines of code into blocks and shows transformations with Sankey-style flow connections:
+- Blocks group consecutive lines of same type (added/modified/deleted/unchanged)
+- Flow connections show how blocks transform between snapshots
+- All code visible inside blocks with type labels
+- Interactive hover highlighting and adjustable sizing
+
+Proof flow links are automatically added to session timeline visualizations when snapshots are available.
+
 ## Customization
 
 Drop a `lea.md` file in your working directory or workspace root to add project-specific instructions to the system prompt (preferred tactics, import conventions, etc.).

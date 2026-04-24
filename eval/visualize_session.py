@@ -125,6 +125,35 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
     total_turns = final_result.get("turns", len(turns))
     usage = final_result.get("usage", {})
 
+    # Check if snapshots exist for proof flow link
+    has_snapshots = (session_dir / "snapshots").exists() and any((session_dir / "snapshots").iterdir())
+
+    # Build proof flow filename (matches the naming in visualize_all_proof_flows.py)
+    # session_dir is like: eval_results/test_run/aime_1990_p2/20260424-025516
+    # We need: test_run_aime_1990_p2_20260424-025516.html
+    proof_flow_filename = None
+    if has_snapshots:
+        # Simple approach: just use the parts after 'eval_results'
+        parts = session_dir.parts
+        try:
+            # Find index of eval_results
+            eval_idx = None
+            for i, part in enumerate(parts):
+                if part == 'eval_results':
+                    eval_idx = i
+                    break
+
+            if eval_idx is not None and eval_idx + 1 < len(parts):
+                # Get all parts after eval_results and join with _
+                relevant_parts = parts[eval_idx + 1:]
+                proof_flow_filename = "_".join(relevant_parts) + ".html"
+            else:
+                # Fallback: use last 2 or 3 parts
+                proof_flow_filename = "_".join(parts[-3:]) + ".html" if len(parts) >= 3 else "_".join(parts) + ".html"
+        except:
+            # Final fallback
+            proof_flow_filename = f"{session_dir.parent.name}_{session_dir.name}.html"
+
     # Build timeline HTML
     timeline_html = []
     for i, entry in enumerate(timeline):
@@ -416,6 +445,34 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
             padding: 15px;
             border-radius: 4px;
         }}
+        .proof-flow-link {{
+            margin-top: 15px;
+            padding: 15px;
+            background: #f0f7ff;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }}
+        .proof-flow-button {{
+            display: inline-block;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.2s;
+        }}
+        .proof-flow-button:hover {{
+            background: #0056b3;
+        }}
+        .proof-flow-description {{
+            color: #666;
+            font-size: 13px;
+        }}
     </style>
 </head>
 <body>
@@ -437,6 +494,14 @@ def generate_html(data: Dict[str, Any], session_dir: Path) -> str:
                 <div class="prompt-content">{escape_html(system_prompt)}</div>
             </details>
             ''' if system_prompt else ''}
+            {f'''
+            <div class="proof-flow-link">
+                <a href="proof_flow/{proof_flow_filename}" target="_blank" class="proof-flow-button">
+                    📊 View Proof Flow Visualization
+                </a>
+                <span class="proof-flow-description">See how the proof evolved across snapshots</span>
+            </div>
+            ''' if has_snapshots and proof_flow_filename else ''}
         </header>
 
         <div class="stats-grid">
